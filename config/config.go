@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/joho/godotenv"
 	"github.com/sashabaranov/go-openai"
+	"github.com/spf13/viper"
 	"log"
 	"reflect"
 
-	//"openrouter-gpt-telegram-bot/api"
 	"openrouter-gpt-telegram-bot/lang"
 	"os"
 	"strconv"
@@ -19,13 +19,12 @@ type Config struct {
 	OpenAIApiKey       string
 	Model              ModelParameters
 	MaxTokens          int
-	Temperature        float32
 	BotLanguage        string
 	OpenAIBaseURL      string
 	SystemPrompt       string
 	BudgetPeriod       string
-	GuestBudget        float32
-	UserBudget         float32
+	GuestBudget        float64
+	UserBudget         float64
 	AdminChatIDs       []int64
 	AllowedUserChatIDs []int64
 	MaxHistorySize     int
@@ -38,6 +37,7 @@ type Config struct {
 }
 
 type ModelParameters struct {
+	Type              string
 	ModelName         string
 	ModelReq          openai.ChatCompletionRequest
 	FrequencyPenalty  float64
@@ -50,40 +50,53 @@ type ModelParameters struct {
 	TopP              float64
 }
 
-func LoadConfig() (*Config, error) {
+func Load() (*Config, error) {
 	err := godotenv.Load()
 	if err != nil {
 		return nil, err
 	}
 
+	viper.SetDefault("MAX_TOKENS", 2000)
+	viper.SetDefault("TEMPERATURE", 1)
+	viper.SetDefault("TOP_P", 0.7)
+	viper.SetDefault("BASE_URL", "https://api.openai.com/v1")
+	viper.SetDefault("BUDGET_PERIOD", "monthly")
+	viper.SetDefault("MAX_HISTORY_SIZE", 10)
+	viper.SetDefault("MAX_HISTORY_TIME", 60)
+	viper.SetDefault("LANG", "en")
+
 	config := &Config{
 		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 		OpenAIApiKey:     os.Getenv("API_KEY"),
 		Model: ModelParameters{
-			ModelName: getEnv("MODEL", "meta-llama/llama-3-8b-instruct:free"),
+			Type:        viper.GetString("TYPE"),
+			ModelName:   viper.GetString("MODEL"),
+			Temperature: viper.GetFloat64("TEMPERATURE"),
+			TopP:        viper.GetFloat64("TOP_P"),
 		},
-		MaxTokens:          getEnvAsInt("MAX_TOKENS", 1200),
-		Temperature:        getEnvAsFloat("TEMPERATURE", 1.0),
-		OpenAIBaseURL:      os.Getenv("BASE_URL"),
-		SystemPrompt:       getEnv("ASSISTANT_PROMPT", "I am a chatbot. I am here to help you."),
-		BudgetPeriod:       getEnv("BUDGET_PERIOD", "monthly"),
-		GuestBudget:        getEnvAsFloat("GUEST_BUDGET", 0),
-		UserBudget:         getEnvAsFloat("USER_BUDGET", 0),
-		AdminChatIDs:       getEnvAsIntList("ADMIN_IDS"),
-		AllowedUserChatIDs: getEnvAsIntList("ALLOWED_USER_IDS"),
-		MaxHistorySize:     getEnvAsInt("MAX_HISTORY_SIZE", 10),
-		MaxHistoryTime:     getEnvAsInt("MAX_HISTORY_TIME", 3),
-		Vision:             getEnv("VISION", "false"),
-		VisionPrompt:       getEnv("VISION_PROMPT", "Describe the image"),
-		VisionDetails:      getEnv("VISION_DETAIL", "low"),
-		StatsMinRole:       getEnv("STATS_MIN_ROLE", "ADMIN"),
-		Lang:               getEnv("LANG", "EN"),
+		MaxTokens:          viper.GetInt("MAX_TOKENS"),
+		OpenAIBaseURL:      viper.GetString("BASE_URL"),
+		SystemPrompt:       viper.GetString("ASSISTANT_PROMPT"),
+		BudgetPeriod:       viper.GetString("BUDGET_PERIOD"),
+		GuestBudget:        viper.GetFloat64("GUEST_BUDGET"),
+		UserBudget:         viper.GetFloat64("USER_BUDGET"),
+		AdminChatIDs:       getStrAsIntList("ADMIN_IDS"),
+		AllowedUserChatIDs: getStrAsIntList("ALLOWED_USER_IDS"),
+		MaxHistorySize:     viper.GetInt("MAX_HISTORY_SIZE"),
+		MaxHistoryTime:     viper.GetInt("MAX_HISTORY_TIME"),
+		Vision:             viper.GetString("VISION"),
+		VisionPrompt:       viper.GetString("VISION_PROMPT"),
+		VisionDetails:      viper.GetString("VISION_DETAIL"),
+		StatsMinRole:       viper.GetString("STATS_MIN_ROLE"),
+		Lang:               viper.GetString("LANG"),
 	}
-
+	if config.BudgetPeriod == "" {
+		log.Fatalf("Set budget_period in config file")
+	}
 	language := lang.Translate("language", config.Lang)
 	config.SystemPrompt = "Always answer in " + language + " language." + config.SystemPrompt
 	//Config model
-	config = setupParameters(config)
+	//config = setupParameters(config)
 	printConfig(config)
 	return config, nil
 }
@@ -122,6 +135,25 @@ func getEnv(key, defaultValue string) string {
 
 func getEnvAsIntList(name string) []int64 {
 	valueStr := os.Getenv(name)
+	if valueStr == "" {
+		log.Println("Missing required environment variable, " + name)
+		var emptyArray []int64
+		return emptyArray
+	}
+	var values []int64
+	for _, str := range strings.Split(valueStr, ",") {
+		value, err := strconv.ParseInt(strings.TrimSpace(str), 10, 64)
+		if err != nil {
+			log.Printf("Invalid value for environment variable %s: %v", name, err)
+			continue
+		}
+		values = append(values, value)
+	}
+	return values
+}
+
+func getStrAsIntList(name string) []int64 {
+	valueStr := viper.GetString(name)
 	if valueStr == "" {
 		log.Println("Missing required environment variable, " + name)
 		var emptyArray []int64

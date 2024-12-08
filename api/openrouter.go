@@ -71,6 +71,7 @@ func HandleChatGPTStreamResponse(bot *tgbotapi.BotAPI, client *openai.Client, me
 		}
 		if errors.Is(err, io.EOF) {
 			fmt.Println("\nStream finished, response ID:", responseID)
+			user.AddMessage(openai.ChatMessageRoleUser, message.Text)
 			user.AddMessage(openai.ChatMessageRoleAssistant, messageText)
 			editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, lastMessageID, messageText)
 			_, err := bot.Send(editMsg)
@@ -189,7 +190,7 @@ func handleChatGPTResponse(bot *tgbotapi.BotAPI, client *openai.Client, message 
 	req := openai.ChatCompletionRequest{
 		Model:       config.Model.ModelName,
 		MaxTokens:   config.MaxTokens,
-		Temperature: config.Temperature,
+		Temperature: float32(config.Model.Temperature),
 		Messages:    messages,
 	}
 	ctx := context.Background()

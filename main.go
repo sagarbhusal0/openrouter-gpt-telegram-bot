@@ -18,10 +18,12 @@ func main() {
 		log.Fatalf("Error loading translations: %v", err)
 	}
 
-	conf, err := config.LoadConfig()
+	manager, err := config.NewManager("./config.yaml") // or the path to your config file
 	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
+		log.Fatalf("Error initializing config manager: %v", err)
 	}
+
+	conf := manager.GetConfig()
 
 	bot, err := tgbotapi.NewBotAPI(conf.TelegramBotToken)
 	if err != nil {
@@ -65,6 +67,7 @@ func main() {
 			continue
 		}
 		userStats := userManager.GetUser(update.SentFrom().ID, update.SentFrom().UserName, conf)
+		//userStats.AddCost(0.0)
 		if update.Message.IsCommand() {
 			switch update.Message.Command() {
 			case "start":
@@ -77,42 +80,41 @@ func main() {
 				msg.ParseMode = "HTML"
 				bot.Send(msg)
 			case "reset":
-				userStats.ClearHistory()
 				args := update.Message.CommandArguments()
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, lang.Translate("commands.reset", conf.Lang))
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+
 				if args == "system" {
 					userStats.SystemPrompt = conf.SystemPrompt
 					msg.Text = lang.Translate("commands.reset_system", conf.Lang)
 				} else if args != "" {
-					msg.Text = lang.Translate("commands.reset_prompt", conf.Lang) + args + "."
 					userStats.SystemPrompt = args
+					msg.Text = lang.Translate("commands.reset_prompt", conf.Lang) + args + "."
+				} else {
+					userStats.ClearHistory()
+					msg.Text = lang.Translate("commands.reset", conf.Lang)
 				}
 				bot.Send(msg)
 			case "stats":
-				if userStats.CanViewStats(conf) {
-					userStats.CheckHistory(conf.MaxHistorySize, conf.MaxHistoryTime)
-					countedUsage := strconv.FormatFloat(userStats.GetCurrentCost(conf.BudgetPeriod), 'f', 6, 64)
-					todayUsage := strconv.FormatFloat(userStats.GetCurrentCost("daily"), 'f', 6, 64)
-					monthUsage := strconv.FormatFloat(userStats.GetCurrentCost("monthly"), 'f', 6, 64)
-					totalUsage := strconv.FormatFloat(userStats.GetCurrentCost("total"), 'f', 6, 64)
-					messagesCount := strconv.Itoa(len(userStats.GetMessages()))
+				userStats.CheckHistory(conf.MaxHistorySize, conf.MaxHistoryTime)
+				countedUsage := strconv.FormatFloat(userStats.GetCurrentCost(conf.BudgetPeriod), 'f', 6, 64)
+				todayUsage := strconv.FormatFloat(userStats.GetCurrentCost("daily"), 'f', 6, 64)
+				monthUsage := strconv.FormatFloat(userStats.GetCurrentCost("monthly"), 'f', 6, 64)
+				totalUsage := strconv.FormatFloat(userStats.GetCurrentCost("total"), 'f', 6, 64)
+				messagesCount := strconv.Itoa(len(userStats.GetMessages()))
 
-					statsMessage := fmt.Sprintf(
+				var statsMessage string
+				if userStats.CanViewStats(conf) {
+					statsMessage = fmt.Sprintf(
 						lang.Translate("commands.stats", conf.Lang),
 						countedUsage, todayUsage, monthUsage, totalUsage, messagesCount)
-
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, statsMessage)
-
-					msg.ParseMode = "HTML"
-					bot.Send(msg)
 				} else {
-					messagesCount := strconv.Itoa(len(userStats.GetMessages()))
-					statsMessage := fmt.Sprintf(
+					statsMessage = fmt.Sprintf(
 						lang.Translate("commands.stats_min", conf.Lang), messagesCount)
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, statsMessage)
-					msg.ParseMode = "HTML"
-					bot.Send(msg)
 				}
+
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, statsMessage)
+				msg.ParseMode = "HTML"
+				bot.Send(msg)
 
 			case "stop":
 				if userStats.CurrentStream != nil {
@@ -129,7 +131,9 @@ func main() {
 				// Handle user message
 				if userStats.HaveAccess(conf) {
 					responseID := api.HandleChatGPTStreamResponse(bot, client, update.Message, conf, userStats)
-					userStats.GetUsageFromApi(responseID, conf)
+					if conf.Model.Type == "openrouter" {
+						userStats.GetUsageFromApi(responseID, conf)
+					}
 				} else {
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, lang.Translate("budget_out", conf.Lang))
 					_, err := bot.Send(msg)

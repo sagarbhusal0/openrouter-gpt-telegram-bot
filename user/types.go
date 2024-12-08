@@ -13,8 +13,10 @@ type UsageTracker struct {
 	SystemPrompt    string
 	LastMessageTime time.Time
 	CurrentStream   *openai.ChatCompletionStream
-	Usage           UserUsage
+	Usage           *UserUsage
 	History         History
+	UsageMu         sync.Mutex `json:"-"` // Мьютекс для синхронизации доступа к Usage
+	FileMu          sync.Mutex `json:"-"` // Мьютекс для синхронизации доступа к файлу
 }
 
 type Message struct {
