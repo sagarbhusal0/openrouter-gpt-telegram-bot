@@ -1,19 +1,31 @@
-# Используем официальный образ Golang как базовый
-FROM golang:1.23.4
+# ---- Build Stage ----
+FROM golang:1.23.4 AS builder
 
-# Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
 
-# Копируем go.mod и go.sum и устанавливаем зависимости
-COPY go.mod ./
-COPY go.sum ./
+# Install dependencies
+COPY go.mod go.sum ./
 RUN go mod download
 
-# Копируем остальные файлы проекта
+# Copy the rest of the source code
 COPY . .
 
-# Собираем приложение
-RUN go build -o /openrouter-gpt-telegram-bot
+# Build the Go binary
+RUN go build -o openrouter-gpt-telegram-bot
 
-# Указываем команду для запуска приложения
-CMD ["/openrouter-gpt-telegram-bot"]
+# ---- Run Stage ----
+FROM debian:bookworm-slim
+
+WORKDIR /app
+
+# Copy the binary from the builder
+COPY --from=builder /app/openrouter-gpt-telegram-bot /app/openrouter-gpt-telegram-bot
+
+# Copy config.yaml and other runtime files (if present)
+COPY config.yaml ./config.yaml
+COPY lang ./lang
+
+# Expose port if your app uses one (optional)
+# EXPOSE 8080
+
+CMD ["/app/openrouter-gpt-telegram-bot"]
