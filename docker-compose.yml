@@ -6,3 +6,4 @@ services:
     restart: unless-stopped
     env_file:
       - .env.production
+      - /app/.env.production
