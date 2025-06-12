@@ -11,7 +11,8 @@ WORKDIR /app
 
 
 # Копируем go.mod и go.sum и устанавливаем зависимости
-
+COPY config.yaml ./config.yaml
+COPY lang ./lang
 COPY go.mod ./
 
 COPY go.sum ./
