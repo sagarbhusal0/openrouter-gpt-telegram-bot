@@ -18,7 +18,7 @@ token_price: 0.002
 # Model configuration
 type: openrouter
 model: deepseek/deepseek-r1:free
-base_url: https://openrouter.ai/api/v1
+base_url: https://openrouter.ai/api/v1/chat/completions
 temperature: 0.7
 top_p: 0.9
 
