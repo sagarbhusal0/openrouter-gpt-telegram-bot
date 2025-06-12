@@ -1,6 +1,7 @@
 package config
 
 import (
+    "fmt"
     "github.com/sashabaranov/go-openai"
     "github.com/spf13/viper"
     "log"
@@ -70,6 +71,44 @@ func getStrAsIntList(envKey string) []int64 {
     return intList
 }
 
+// getEnvString gets a string from environment variables with a default value
+func getEnvString(key string, defaultValue string) string {
+    value := os.Getenv(key)
+    if value == "" {
+        return defaultValue
+    }
+    return value
+}
+
+// getEnvInt gets an integer from environment variables with a default value
+func getEnvInt(key string, defaultValue int) int {
+    value := os.Getenv(key)
+    if value == "" {
+        return defaultValue
+    }
+    intValue, err := strconv.Atoi(value)
+    if err != nil {
+        log.Printf("Warning: could not parse %s as int: %v, using default value %d", key, err, defaultValue)
+        return defaultValue
+    }
+    return intValue
+}
+
+// getEnvFloat gets a float64 from environment variables with a default value
+func getEnvFloat(key string, defaultValue float64) float64 {
+    value := os.Getenv(key)
+    if value == "" {
+        return defaultValue
+    }
+    floatValue, err := strconv.ParseFloat(value, 64)
+    if err != nil {
+        log.Printf("Warning: could not parse %s as float64: %v, using default value %f", key, err, defaultValue)
+        return defaultValue
+    }
+    return floatValue
+}
+
+// Load initializes and returns the configuration
 func Load() (*Config, error) {
     // Set default values
     viper.SetDefault("MAX_TOKENS", 2000)
@@ -81,21 +120,21 @@ func Load() (*Config, error) {
     viper.SetDefault("MAX_HISTORY_TIME", 60)
     viper.SetDefault("LANG", "en")
 
-    // Environment variables
+    // Initialize configuration
     config := &Config{
         TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
         OpenAIApiKey:     os.Getenv("API_KEY"),
         Model: ModelParameters{
-            Type:        os.Getenv("TYPE"),
-            ModelName:   os.Getenv("MODEL"),
-            Temperature: getEnvFloat("TEMPERATURE", 1.0),
-            TopP:        getEnvFloat("TOP_P", 0.7),
+            Type:              os.Getenv("TYPE"),
+            ModelName:         os.Getenv("MODEL"),
+            Temperature:       getEnvFloat("TEMPERATURE", 1.0),
+            TopP:             getEnvFloat("TOP_P", 0.7),
             FrequencyPenalty: getEnvFloat("FREQUENCY_PENALTY", 0),
             PresencePenalty:  getEnvFloat("PRESENCE_PENALTY", 0),
-            MinP:            getEnvFloat("MIN_P", 0),
+            MinP:             getEnvFloat("MIN_P", 0),
             RepetitionPenalty: getEnvFloat("REPETITION_PENALTY", 1),
-            TopA:            getEnvFloat("TOP_A", 0),
-            TopK:            getEnvFloat("TOP_K", 0),
+            TopA:             getEnvFloat("TOP_A", 0),
+            TopK:             getEnvFloat("TOP_K", 0),
         },
         MaxTokens:          getEnvInt("MAX_TOKENS", 2000),
         OpenAIBaseURL:      getEnvString("BASE_URL", "https://api.openai.com/v1"),
@@ -125,7 +164,7 @@ func Load() (*Config, error) {
         return nil, fmt.Errorf("BUDGET_PERIOD is required")
     }
 
-    // Load language
+    // Verify language configuration
     language := lang.Translate("language", config.Lang)
     if language == "" {
         log.Printf("Warning: Language '%s' not found, defaulting to 'en'", config.Lang)
@@ -133,39 +172,4 @@ func Load() (*Config, error) {
     }
 
     return config, nil
-}
-
-// Helper functions to get environment variables with default values
-func getEnvString(key string, defaultValue string) string {
-    value := os.Getenv(key)
-    if value == "" {
-        return defaultValue
-    }
-    return value
-}
-
-func getEnvInt(key string, defaultValue int) int {
-    value := os.Getenv(key)
-    if value == "" {
-        return defaultValue
-    }
-    intValue, err := strconv.Atoi(value)
-    if err != nil {
-        log.Printf("Warning: could not parse %s as int: %v, using default value %d", key, err, defaultValue)
-        return defaultValue
-    }
-    return intValue
-}
-
-func getEnvFloat(key string, defaultValue float64) float64 {
-    value := os.Getenv(key)
-    if value == "" {
-        return defaultValue
-    }
-    floatValue, err := strconv.ParseFloat(value, 64)
-    if err != nil {
-        log.Printf("Warning: could not parse %s as float64: %v, using default value %f", key, err, defaultValue)
-        return defaultValue
-    }
-    return floatValue
 }
