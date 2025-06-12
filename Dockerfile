@@ -10,4 +10,4 @@ WORKDIR /app
 COPY --from=builder /app/openrouter-gpt-telegram-bot /app/
 COPY config.yaml ./config.yaml
 COPY lang ./lang
-CMD ["/app/openrouter-gpt-telegram-bot"]
+CMD ["/openrouter-gpt-telegram-bot"]
